@@ -68,10 +68,16 @@ async def main():
     await dp.start_polling(bot)
 
 
+# src/main.py dosyasının en altındaki bloğu şu şekilde güncelleyin:
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot stopped!")
+    except Exception as e:
+        # Kritik hataları loglamak için güncellendi
+        logger.exception(f"Bot başlatılırken kritik bir hata oluştu: {e}")
     finally:
-        asyncio.run(redis_client.disconnect())
+        try:
+            asyncio.run(redis_client.disconnect())
+        except:
+            pass
