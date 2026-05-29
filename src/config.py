@@ -12,24 +12,29 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(..., env="REDIS_URL")
     GROQ_API_KEY: str = Field(..., env="GROQ_API_KEY")
     
-    # Virgülle ayrılmış metni listeye çeviren validator eklendi
     ADMIN_TELEGRAM_IDS: List[int] = Field(default_factory=list, env="ADMIN_TELEGRAM_IDS")
+
+    @field_validator("REDIS_URL", mode="before")
+    @classmethod
+    def clean_redis_url(cls, v: str) -> str:
+        # Eğer kullanıcı yanlışlıkla 'redis-cli -u redis://...' şeklinde yapıştırdıysa temizle
+        if " -u " in v:
+            v = v.split(" -u ")[-1]
+        elif "redis-cli " in v:
+            v = v.split(" ")[-1]
+        return v.strip()
 
     @field_validator("ADMIN_TELEGRAM_IDS", mode="before")
     @classmethod
     def parse_admin_ids(cls, v: Union[str, int, List[int]]) -> List[int]:
         if isinstance(v, str):
-            # Eğer boş metinse boş liste dön
             if not v.strip():
                 return []
-            # Virgülle ayrılmışsa parçala ve int'e çevir
             return [int(x.strip()) for x in v.split(",")]
         elif isinstance(v, int):
-            # Tek bir sayı gelirse listeye koy
             return [v]
         return v
 
-    # yt-dlp settings
     YTDLP_CACHE_DIR: str = Field("./.ytdlp_cache", env="YTDLP_CACHE_DIR")
     YTDLP_COOKIES_FILE: str = Field("", env="YTDLP_COOKIES_FILE")
 
