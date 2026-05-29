@@ -1,0 +1,61 @@
+[project]
+name = "telegram_music_bot"
+version = "0.1.0"
+description = "A modern and advanced Telegram music bot with AI recommendations."
+authors = [
+    { name = "Manus AI", email = "ai@manus.im" }
+]
+dependencies = [
+    "aiogram==3.*",
+    "SQLAlchemy==2.*",
+    "asyncpg==0.*",
+    "redis==5.*",
+    "yt-dlp==2024.*",
+    "ffmpeg-python==0.*",
+    "python-dotenv==1.*",
+    "groq==0.*",
+    "pydantic==2.*",
+    "loguru==0.*",
+    "alembic==1.*",
+    "psycopg2-binary==2.*",
+]
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+[project.urls]
+"Homepage" = "https://github.com/manus-ai/telegram_music_bot"
+"Bug Tracker" = "https://github.com/manus-ai/telegram_music_bot/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.alembic]
+script_location = "src/database/migrations"
+sqlalchemy_url = "postgresql+asyncpg://user:password@host:port/database"
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 120
+known_first_party = ["telegram_music_bot"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
