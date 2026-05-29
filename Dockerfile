@@ -1,10 +1,11 @@
 FROM python:3.11-slim-bookworm
 
-# Çevre değişkenlerini ayarla
 ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE 1
 ENV APP_HOME /app
+# Python'un src klasörünü bulabilmesi için yolu ekliyoruz
+ENV PYTHONPATH $APP_HOME
 
-# Sistem bağımlılıklarını kur (FFmpeg ve derleme araçları)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ffmpeg \
@@ -15,14 +16,11 @@ RUN apt-get update \
         python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Çalışma dizinini oluştur
 WORKDIR $APP_HOME
 
-# Tüm dosyaları kopyala
 COPY . $APP_HOME/
 
-# Bağımlılıkları doğrudan pip ile kur (Daha güvenli ve hızlıdır)
 RUN pip install --no-cache-dir .
 
-# Botu başlat
+# Modül olarak başlatıyoruz
 CMD ["python", "src/main.py"]
