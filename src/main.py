@@ -1,6 +1,6 @@
-
 import asyncio
-from aiohttp import web # Bunu en üste ekleyin
+import os
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
@@ -13,23 +13,24 @@ from src.telegram.handlers import admin, ai_recommendation, liked_songs, playlis
 from src.telegram.middlewares.throttling import ThrottlingMiddleware
 from src.telegram.middlewares.session_middleware import SessionMiddleware
 
-async def dummy_handler(request ):
-    return web.Response(text="Bot is running!")
+# Render için dummy handler
+async def handle(request ):
+    return web.Response(text="Bot is alive!")
 
 async def main():
-    # 1. Veritabanı Başlatma
+    # 1. Veritabanı
     db_instance = Database(settings.DATABASE_URL)
     await db_instance.init_db()
     SessionMiddleware.db = db_instance
 
-    # 2. Redis Başlatma
+    # 2. Redis
     await redis_client.connect()
     storage = RedisStorage(
         redis=redis_client.client, 
         key_builder=DefaultKeyBuilder(with_bot_id=True, with_destiny=True)
     )
 
-    # 3. Bot ve Dispatcher
+    # 3. Bot
     bot = Bot(settings.BOT_TOKEN, parse_mode=ParseMode.HTML)
     dp = Dispatcher(storage=storage)
 
@@ -47,18 +48,20 @@ async def main():
     dp.include_router(ai_recommendation.router)
     dp.include_router(admin.router)
     dp.include_router(download.router)
+
+    # RENDER PORT BINDING (KRİTİK KISIM)
     app = web.Application()
-    app.router.add_get("/", dummy_handler)
+    app.router.add_get('/', handle)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 10000)))
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    
+    # Sunucuyu arka planda başlat
     asyncio.create_task(site.start())
+    logger.info(f"Dummy server started on port {port}")
 
-    logger.info("Bot başarıyla başlatıldı...")
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
-
-    logger.info("Bot başarıyla başlatıldı ve dinlemeye geçti...")
+    logger.info("Bot başlatılıyor...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
@@ -66,10 +69,9 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except Exception as e:
-        logger.exception(f"KRİTİK HATA: {e}")
+        logger.exception(f"Kritik Hata: {e}")
     finally:
         try:
             asyncio.run(redis_client.disconnect())
         except:
             pass
-
