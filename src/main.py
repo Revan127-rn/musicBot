@@ -61,9 +61,18 @@ async def main():
     asyncio.create_task(site.start())
     logger.info(f"Dummy server started on port {port}")
 
+# src/main.py içinde dp.start_polling satırından hemen önce şunu ekleyin:
+
+    @dp.update.outer_middleware()
+    async def log_updates(handler, event, data):
+        logger.info(f"YENİ GÜNCELLEME GELDİ: {event}")
+        return await handler(event, data)
+
+    # Mevcut kodunuzun sonu:
     logger.info("Bot başarıyla başlatıldı...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     try:
