@@ -1,36 +1,28 @@
 FROM python:3.11-slim-bookworm
 
-# Set environment variables
+# Çevre değişkenlerini ayarla
 ENV PYTHONUNBUFFERED 1
 ENV APP_HOME /app
 
-# Install system dependencies
+# Sistem bağımlılıklarını kur (FFmpeg ve derleme araçları)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ffmpeg \
         git \
-        # For yt-dlp to work properly, some dependencies might be needed
-        # Check yt-dlp documentation for minimal requirements
-        # For example, ca-certificates, openssl, etc.
         ca-certificates \
         openssl \
+        build-essential \
+        python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp
-RUN pip install yt-dlp
-
-# Create app directory
+# Çalışma dizinini oluştur
 WORKDIR $APP_HOME
 
-# Copy project files
-COPY pyproject.toml $APP_HOME/
-COPY src/ $APP_HOME/src/
+# Tüm dosyaları kopyala
+COPY . $APP_HOME/
 
-# Install Python dependencies from pyproject.toml
-RUN pip install poetry && poetry install --no-root --no-dev
+# Bağımlılıkları doğrudan pip ile kur (Daha güvenli ve hızlıdır)
+RUN pip install --no-cache-dir .
 
-# Expose port for potential webhooks (if used, though this is a bot)
-# EXPOSE 80
-
-# Command to run the bot
+# Botu başlat
 CMD ["python", "src/main.py"]
