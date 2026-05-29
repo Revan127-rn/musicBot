@@ -7,28 +7,22 @@ from src.database.models import Base
 
 class Database:
     def __init__(self, db_url: str):
-        # 1. URL'yi temizle ve düzenle
+        # 1. URL'yi düzenle (psycopg sürücüsünü kullanıyoruz)
         url = make_url(db_url)
         
-        # asyncpg için sürücüyü kontrol et
-        if url.drivername == "postgresql":
-            url = url.set(drivername="postgresql+asyncpg")
+        # Dialect'i postgresql+psycopg olarak ayarla
+        if "psycopg" not in url.drivername:
+            url = url.set(drivername="postgresql+psycopg")
         
-        # Neon/asyncpg ile çakışan 'sslmode' parametresini URL'den kaldır
-        query = dict(url.query)
-        if "sslmode" in query:
-            del query["sslmode"]
-        url = url.set(query=query)
+        # 2. Neon için SSL ayarlarını doğrudan URL parametresi olarak bırakabiliriz
+        # psycopg, URL içindeki sslmode=require parametresini mükemmel anlar.
         
-        # 2. SSL ayarlarını güvenli şekilde yap
-        connect_args = {}
-        if "neon.tech" in str(url):
-            connect_args["ssl"] = "require"
-            
         self.engine = create_async_engine(
             url, 
-            echo=False, 
-            connect_args=connect_args
+            echo=False,
+            # Bağlantı havuzu ayarları (Neon için optimize edildi)
+            pool_pre_ping=True,
+            pool_recycle=300
         )
         
         self.SessionLocal = sessionmaker(
@@ -42,9 +36,8 @@ class Database:
     async def init_db(self):
         try:
             async with self.engine.begin() as conn:
-                # Tabloları oluştur/güncelle
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("Veritabanı bağlantısı başarılı ve tablolar hazır.")
+            logger.info("Veritabanı bağlantısı (psycopg) başarılı.")
         except Exception as e:
             logger.error(f"Veritabanı başlatma hatası: {e}")
             raise
