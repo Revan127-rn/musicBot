@@ -1,5 +1,5 @@
 import asyncio
-import os
+import os  # Eksik olan import eklendi
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
@@ -49,7 +49,7 @@ async def main():
     dp.include_router(admin.router)
     dp.include_router(download.router)
 
-    # RENDER PORT BINDING (KRİTİK KISIM)
+    # RENDER PORT BINDING (Render'ın botu kapatmaması için)
     app = web.Application()
     app.router.add_get('/', handle)
     runner = web.AppRunner(app)
@@ -61,7 +61,7 @@ async def main():
     asyncio.create_task(site.start())
     logger.info(f"Dummy server started on port {port}")
 
-    logger.info("Bot başlatılıyor...")
+    logger.info("Bot başarıyla başlatıldı...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
