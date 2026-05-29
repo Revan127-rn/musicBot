@@ -1,23 +1,32 @@
-# src/database/database.py dosyasını tamamen bununla değiştirin:
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine.url import make_url
 from loguru import logger
 from src.database.models import Base
 
 class Database:
     def __init__(self, db_url: str):
-        # Eğer kullanıcı +asyncpg eklemeyi unuttuysa otomatik düzelt
-        if db_url.startswith("postgresql://"):
-            db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # 1. URL'yi temizle ve düzenle
+        url = make_url(db_url)
         
-        # Neon.tech için SSL zorunluluğu
+        # asyncpg için sürücüyü kontrol et
+        if url.drivername == "postgresql":
+            url = url.set(drivername="postgresql+asyncpg")
+        
+        # Neon/asyncpg ile çakışan 'sslmode' parametresini URL'den kaldır
+        query = dict(url.query)
+        if "sslmode" in query:
+            del query["sslmode"]
+        url = url.set(query=query)
+        
+        # 2. SSL ayarlarını güvenli şekilde yap
         connect_args = {}
-        if "neon.tech" in db_url:
+        if "neon.tech" in str(url):
             connect_args["ssl"] = "require"
             
         self.engine = create_async_engine(
-            db_url, 
+            url, 
             echo=False, 
             connect_args=connect_args
         )
@@ -33,10 +42,11 @@ class Database:
     async def init_db(self):
         try:
             async with self.engine.begin() as conn:
+                # Tabloları oluştur/güncelle
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("Veritabanı tabloları başarıyla oluşturuldu.")
+            logger.info("Veritabanı bağlantısı başarılı ve tablolar hazır.")
         except Exception as e:
-            logger.error(f"Veritabanı bağlantı hatası: {e}")
+            logger.error(f"Veritabanı başlatma hatası: {e}")
             raise
 
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
@@ -50,6 +60,6 @@ db: Database | None = None
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     if db is None:
-        raise Exception("Database not initialized.")
+        raise Exception("Database initialized değil!")
     async for session in db.get_session():
         yield session
