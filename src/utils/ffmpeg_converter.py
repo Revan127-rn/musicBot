@@ -1,6 +1,5 @@
 import os
 import asyncio
-import ffmpeg
 from loguru import logger
 
 async def convert_to_mp3_and_optimize(input_path: str, output_path: str) -> str:
@@ -8,11 +7,10 @@ async def convert_to_mp3_and_optimize(input_path: str, output_path: str) -> str:
     Sesi MP3 formatına dönüştürür ve Telegram limitleri için optimize eder.
     """
     try:
-        # Asenkron çalıştırmak için sarmalıyoruz
         process = await asyncio.create_subprocess_exec(
             'ffmpeg', '-y', '-i', input_path,
             '-codec:a', 'libmp3lame',
-            '-qscale:a', '4',  # İyi kalite, düşük boyut
+            '-qscale:a', '4',
             '-ar', '44100',
             output_path,
             stdout=asyncio.subprocess.PIPE,
@@ -34,8 +32,6 @@ async def embed_thumbnail(audio_path: str, thumbnail_path: str, output_path: str
     MP3 dosyasına kapak fotoğrafı (thumbnail) ekler.
     """
     try:
-        # Tekrar eden 'map' argümanı hatasını düzeltmek için 
-        # komutu liste olarak oluşturup subprocess ile çalıştırıyoruz
         process = await asyncio.create_subprocess_exec(
             'ffmpeg', '-y',
             '-i', audio_path,
@@ -54,7 +50,6 @@ async def embed_thumbnail(audio_path: str, thumbnail_path: str, output_path: str
 
         if process.returncode != 0:
             logger.error(f"Thumbnail gömme hatası: {stderr.decode()}")
-            # Hata olsa bile orijinal dosyayı döndürelim ki bot çalışmaya devam etsin
             return audio_path
             
         return output_path
