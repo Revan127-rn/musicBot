@@ -10,3 +10,4 @@ redis==5.0.1
 yt-dlp==2024.3.10
 groq==0.4.2
 alembic==1.13.1
+cachetools==5.3.3
