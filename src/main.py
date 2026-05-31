@@ -1,9 +1,10 @@
 import asyncio
-import os  # Eksik olan import eklendi
+import os
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
+from aiogram.fsm.storage.memory import MemoryStorage # Yedek hafıza
 from loguru import logger
 
 from src.config import settings
@@ -13,24 +14,44 @@ from src.telegram.handlers import admin, ai_recommendation, liked_songs, playlis
 from src.telegram.middlewares.throttling import ThrottlingMiddleware
 from src.telegram.middlewares.session_middleware import SessionMiddleware
 
-# Render için dummy handler
 async def handle(request ):
     return web.Response(text="Bot is alive!")
 
 async def main():
-    # 1. Veritabanı
-    db_instance = Database(settings.DATABASE_URL)
-    await db_instance.init_db()
-    SessionMiddleware.db = db_instance
+    # --- 1. RENDER İÇİN PORTU HEMEN AÇ (Kritik!) ---
+    app = web.Application()
+    app.router.add_get('/', handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    asyncio.create_task(site.start())
+    logger.info(f"Render health check portu {port} üzerinde açıldı.")
 
-    # 2. Redis
-    await redis_client.connect()
-    storage = RedisStorage(
-        redis=redis_client.client, 
-        key_builder=DefaultKeyBuilder(with_bot_id=True, with_destiny=True)
-    )
+    # --- 2. VERİTABANI BAŞLATMA ---
+    try:
+        db_instance = Database(settings.DATABASE_URL)
+        await db_instance.init_db()
+        SessionMiddleware.db = db_instance
+    except Exception as e:
+        logger.error(f"Veritabanı başlatılamadı: {e}")
+        # Veritabanı olmadan bot çalışamaz, bu yüzden burada durabiliriz.
+        return
 
-    # 3. Bot
+    # --- 3. REDIS BAĞLANTISI VE STORAGE SEÇİMİ ---
+    storage = MemoryStorage() # Varsayılan olarak hafızayı seç
+    try:
+        await redis_client.connect()
+        if redis_client.client:
+            storage = RedisStorage(
+                redis=redis_client.client, 
+                key_builder=DefaultKeyBuilder(with_bot_id=True, with_destiny=True)
+            )
+            logger.info("Redis bağlandı, RedisStorage kullanılıyor.")
+    except Exception as e:
+        logger.warning(f"Redis bağlantısı başarısız, MemoryStorage ile devam ediliyor: {e}")
+
+    # --- 4. BOT VE DISPATCHER ---
     bot = Bot(settings.BOT_TOKEN, parse_mode=ParseMode.HTML)
     dp = Dispatcher(storage=storage)
 
@@ -49,38 +70,12 @@ async def main():
     dp.include_router(admin.router)
     dp.include_router(download.router)
 
-    # RENDER PORT BINDING (Render'ın botu kapatmaması için)
-    app = web.Application()
-    app.router.add_get('/', handle)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.getenv("PORT", 10000))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    
-    # Sunucuyu arka planda başlat
-    asyncio.create_task(site.start())
-    logger.info(f"Dummy server started on port {port}")
-
-# src/main.py içinde dp.start_polling satırından hemen önce şunu ekleyin:
-
-    @dp.update.outer_middleware()
-    async def log_updates(handler, event, data):
-        logger.info(f"YENİ GÜNCELLEME GELDİ: {event}")
-        return await handler(event, data)
-
-    # Mevcut kodunuzun sonu:
-    logger.info("Bot başarıyla başlatıldı...")
+    logger.info("Bot başarıyla başlatıldı ve dinlemeye geçti...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except Exception as e:
-        logger.exception(f"Kritik Hata: {e}")
-    finally:
-        try:
-            asyncio.run(redis_client.disconnect())
-        except:
-            pass
+        logger.exception(f"Bot durduruldu: {e}")
