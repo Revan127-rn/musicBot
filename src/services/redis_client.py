@@ -12,7 +12,6 @@ class RedisClient:
     async def connect(self):
         if not settings.REDIS_URL or settings.REDIS_URL.lower() == "none":
             return
-
         try:
             self.client = redis.from_url(
                 settings.REDIS_URL,
