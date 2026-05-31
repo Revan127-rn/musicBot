@@ -52,7 +52,11 @@ async def main():
         logger.warning(f"Redis bağlantısı başarısız, MemoryStorage ile devam ediliyor: {e}")
 
     # --- 4. BOT VE DISPATCHER ---
-    bot = Bot(settings.BOT_TOKEN, parse_mode=ParseMode.HTML)
+    from aiogram.client.default import DefaultBotProperties
+    bot = Bot(
+        token=settings.BOT_TOKEN, 
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
     dp = Dispatcher(storage=storage)
 
     # Middlewares
