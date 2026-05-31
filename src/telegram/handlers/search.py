@@ -23,13 +23,51 @@ async def search_music_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+@router.message(SearchStates.waiting_for_query)
+async def process_search_query(message: Message, state: FSMContext, session: AsyncSession):
+    query = message.text
+    if not query:
+        await message.answer("Geçersiz giriş. Lütfen tekrar deneyin.")
+        return
+
+    await message.answer(f"🔍 Axtarılır: <b>{query}</b>")
+
+    cached_results = await redis_client.get_search_results(query)
+    if cached_results:
+        results = cached_results
+        cache_status = "Cache-dən"
+    else:
+        results = await youtube_client.search_video(query)
+        if results:
+            await redis_client.set_search_results(query, results)
+        cache_status = "YouTube-dan"
+
+    await message.answer(
+        f"🛠 <b>Debug:</b>\n"
+        f"Mənbə: {cache_status}\n"
+        f"Nəticə sayı: {len(results)}"
+    )
+
+    if not results:
+        await message.answer(
+            "❌ Nəticə tapılmadı.",
+            reply_markup=main_menu_keyboard()
+        )
+        await state.clear()
+        return
+
+    await message.answer(
+        "Arama sonuçları:",
+        reply_markup=search_results_keyboard(results, current_page=0)
+    )
+    await state.clear()
+
 
 @router.callback_query(F.data.startswith("select_song:"))
 async def select_song_callback(callback: CallbackQuery, session: AsyncSession):
     youtube_id = callback.data.split(":")[1]
     song_service = SongService(session)
 
-    # Get song info from YouTube (or cache if available)
     song_info = await youtube_client.get_video_info(f"https://www.youtube.com/watch?v={youtube_id}")
     if not song_info:
         await callback.message.answer("Şarkı bilgileri alınamadı.")
@@ -55,11 +93,7 @@ async def select_song_callback(callback: CallbackQuery, session: AsyncSession):
 
 @router.callback_query(F.data.startswith("search_page:"))
 async def search_page_callback(callback: CallbackQuery, session: AsyncSession):
-    # This part needs more complex state management if search results are not cached per user
-    # For simplicity, we'll assume a fresh search or a simple pagination for a limited set of results
-    # In a real app, you'd store search results in FSM or Redis for pagination
     await callback.answer("Sayfalama özelliği şu an için sadece örnek amaçlıdır. Geliştirme aşamasındadır.")
-    # For now, just return to main menu
     await callback.message.edit_text("Ana menüye dönülüyor.", reply_markup=main_menu_keyboard())
 
 
