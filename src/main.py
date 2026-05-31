@@ -10,14 +10,15 @@ from aiogram.client.default import DefaultBotProperties
 from loguru import logger
 
 from src.config import settings
+import src.database.database as db_module
 from src.database.database import Database
 from src.services.redis_client import redis_client
 from src.telegram.handlers import admin, ai_recommendation, liked_songs, playlist, search, start, download
 from src.telegram.middlewares.throttling import ThrottlingMiddleware
 from src.telegram.middlewares.session_middleware import SessionMiddleware
 
-# Render tarafından sağlanan otomatik URL (örn: https://musicbot-6v34.onrender.com )
-BASE_URL = os.getenv("RENDER_EXTERNAL_URL")
+# Yapılandırma
+BASE_URL = os.getenv("RENDER_EXTERNAL_URL" )
 WEBHOOK_PATH = f"/webhook/{settings.BOT_TOKEN}"
 
 async def on_startup(bot: Bot):
@@ -31,16 +32,16 @@ async def on_startup(bot: Bot):
     )
 
 async def main():
-    # 1. Veritabanı
+    # 1. Veritabanı Başlatma (Global Değişkeni Set Et)
     try:
         db_instance = Database(settings.DATABASE_URL)
         await db_instance.init_db()
-        SessionMiddleware.db = db_instance
+        db_module.db = db_instance # Diğer modüllerin erişimi için
     except Exception as e:
-        logger.error(f"Veritabanı hatası: {e}")
+        logger.error(f"Veritabanı başlatılamadı: {e}")
         return
 
-    # 2. Storage (Redis veya Memory)
+    # 2. Storage Seçimi (Redis veya Memory)
     storage = MemoryStorage()
     try:
         await redis_client.connect()
@@ -50,23 +51,29 @@ async def main():
                 key_builder=DefaultKeyBuilder(with_bot_id=True, with_destiny=True)
             )
             logger.info("RedisStorage aktif.")
-    except:
-        logger.warning("Redis bağlantısı yok, MemoryStorage kullanılıyor.")
+    except Exception as e:
+        logger.warning(f"Redis bağlantısı başarısız, MemoryStorage kullanılıyor: {e}")
 
-    # 3. Bot ve Dispatcher
+    # 3. Bot ve Dispatcher Kurulumu
     bot = Bot(
         token=settings.BOT_TOKEN, 
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     dp = Dispatcher(storage=storage)
 
-    # Middlewares
+    # Debug Middleware (Gelen mesajları loglarda görmek için)
+    @dp.update.outer_middleware()
+    async def debug_middleware(handler, event, data):
+        logger.info(f"--- Yeni İstek: {event.event_type} ---")
+        return await handler(event, data)
+
+    # Middleware Kayıtları
     dp.message.middleware(ThrottlingMiddleware())
     dp.callback_query.middleware(ThrottlingMiddleware())
     dp.message.middleware(SessionMiddleware())
     dp.callback_query.middleware(SessionMiddleware())
 
-    # Routers
+    # Router Kayıtları
     dp.include_router(start.router)
     dp.include_router(search.router)
     dp.include_router(playlist.router)
@@ -75,31 +82,27 @@ async def main():
     dp.include_router(admin.router)
     dp.include_router(download.router)
 
-    # Startup işlemini kaydet
+    # Startup Kaydı
     dp.startup.register(on_startup)
 
-    # 4. Web Sunucusu (Webhook için)
+    # 4. Web Sunucusu Kurulumu
     app = web.Application()
     
-    # Render Sağlık Kontrolü
-    app.router.add_get("/", lambda r: web.Response(text="Bot is running in Webhook mode!"))
+    # Sağlık Kontrolü
+    app.router.add_get("/", lambda r: web.Response(text="Bot is running!"))
     
-    # Telegram Webhook İşleyici
+    # Webhook Handler
     webhook_requests_handler = SimpleRequestHandler(
         dispatcher=dp,
         bot=bot
     )
     webhook_requests_handler.register(app, path=WEBHOOK_PATH)
-
-    # Uygulamayı kur ve başlat
     setup_application(app, dp, bot=bot)
-    
-    port = int(os.getenv("PORT", 10000))
-    logger.info(f"Bot Webhook modunda {port} portunda başlatılıyor...")
     
     return app
 
 if __name__ == "__main__":
-    # Render/aiohttp için uygulama başlatma
-    app = asyncio.run(main( ))
-    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+    # Uygulamayı Render'ın beklediği portta başlat
+    app = asyncio.run(main())
+    if app:
+        web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
