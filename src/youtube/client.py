@@ -110,7 +110,7 @@ class YouTubeClient:
             loop = asyncio.get_event_loop()
 
             def _download():
-                yt = YouTube(video_url, on_progress_callback=on_progress, use_oauth=False, allow_oauth_cache=True)
+                yt = YouTube(video_url, on_progress_callback=on_progress, use_po_token=True)
                 stream = yt.streams.filter(only_audio=True).order_by("abr").last()
                 if not stream:
                     return None
