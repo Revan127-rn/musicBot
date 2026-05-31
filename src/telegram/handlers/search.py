@@ -23,34 +23,6 @@ async def search_music_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.message(SearchStates.waiting_for_query)
-async def process_search_query(message: Message, state: FSMContext, session: AsyncSession):
-    query = message.text
-    if not query:
-        await message.answer("Geçersiz giriş. Lütfen tekrar deneyin.")
-        return
-
-    await message.answer(f"\"**{query}**\" için arama yapılıyor...")
-
-    # Check cache first
-    cached_results = await redis_client.get_search_results(query)
-    if cached_results:
-        results = cached_results
-    else:
-        results = await youtube_client.search_video(query)
-        await redis_client.set_search_results(query, results)
-
-    if not results:
-        await message.answer("Üzgünüm, aramanızla eşleşen bir sonuç bulunamadı.", reply_markup=main_menu_keyboard())
-        await state.clear()
-        return
-
-    await message.answer(
-        "Arama sonuçları:",
-        reply_markup=search_results_keyboard(results, current_page=0)
-    )
-    await state.clear()
-
 
 @router.callback_query(F.data.startswith("select_song:"))
 async def select_song_callback(callback: CallbackQuery, session: AsyncSession):
