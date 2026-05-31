@@ -81,7 +81,7 @@ async def main():
                     await bot.send_message(admin_id, error_text)
                 except Exception:
                     pass
-            raise)
+            raise
 
     # Middleware Kayıtları
     dp.message.middleware(ThrottlingMiddleware())
