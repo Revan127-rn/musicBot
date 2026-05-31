@@ -78,7 +78,10 @@ async def download_song_callback(callback: CallbackQuery, session: AsyncSession)
 
     except Exception as e:
         logger.error(f"Error during song download or processing for {song.youtube_id}: {e}")
-        await callback.message.answer("Şarkı indirilirken veya işlenirken bir hata oluştu. Lütfen tekrar deneyin.", reply_markup=main_menu_keyboard())
+        await callback.message.answer(
+            f"🚨 Yükləmə xətası:\n<code>{type(e).__name__}: {str(e)}</code>",
+            reply_markup=main_menu_keyboard()
+        )
     finally:
         # Clean up temporary files
         files_to_clean = [temp_audio_path, final_audio_path]
