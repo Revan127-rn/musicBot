@@ -17,12 +17,11 @@ class YouTubeClient:
         logger.info(f"YouTube API axtarışı: {query}")
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                # Axtarış
                 search_resp = await client.get(self.SEARCH_URL, params={
                     "part": "snippet",
                     "q": query,
                     "type": "video",
-                    "videoCategoryId": "10",  # Music kateqoriyası
+                    "videoCategoryId": "10",
                     "maxResults": 10,
                     "key": settings.YOUTUBE_API_KEY,
                 })
@@ -36,10 +35,8 @@ class YouTubeClient:
                 if not items:
                     return []
 
-                # Video ID-lərini topla
                 video_ids = [item["id"]["videoId"] for item in items]
 
-                # Duration üçün videos endpoint-ə müraciət et
                 videos_resp = await client.get(self.VIDEOS_URL, params={
                     "part": "contentDetails,snippet",
                     "id": ",".join(video_ids),
@@ -103,55 +100,42 @@ class YouTubeClient:
 
     async def download_audio(self, youtube_id: str, output_path: str) -> Optional[str]:
         logger.info(f"Audio yüklənir: {youtube_id}")
-        logger.info(f"Cookies faylı: {settings.YTDLP_COOKIES_FILE}")
-        import os
-        logger.info(f"Cookies mövcuddur: {os.path.exists(settings.YTDLP_COOKIES_FILE) if settings.YTDLP_COOKIES_FILE else 'YOX'}")
-        from yt_dlp import YoutubeDL
         video_url = f"https://www.youtube.com/watch?v={youtube_id}"
-        opts = {
-            "format": "bestaudio/best",
-            "outtmpl": output_path,
-            "noplaylist": True,
-            "quiet": True,
-            "no_check_certificate": True,
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                },
-                {"key": "FFmpegMetadata"},
-            ],
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["ios", "web"],
-                }
-            },
-        }
+
         try:
+            from pytubefix import YouTube
+            from pytubefix.cli import on_progress
+            import subprocess
+
             loop = asyncio.get_event_loop()
 
             def _download():
-                with YoutubeDL(opts) as ydl:
-                    return ydl.extract_info(video_url, download=True)
-
-            info_dict = await loop.run_in_executor(None, _download)
-            if info_dict:
+                yt = YouTube(video_url, on_progress_callback=on_progress, use_oauth=False, allow_oauth_cache=True)
+                stream = yt.streams.filter(only_audio=True).order_by("abr").last()
+                if not stream:
+                    return None
                 base = output_path.rsplit(".", 1)[0]
-                final_path = f"{base}.mp3"
-                if os.path.exists(final_path):
-                    return final_path
-                for pp in info_dict.get("requested_downloads", []):
-                    fp = pp.get("filepath", "")
-                    if fp.endswith(".mp3"):
-                        return fp
-            return None
+                downloaded = stream.download(
+                    output_path=os.path.dirname(base),
+                    filename=os.path.basename(base)
+                )
+                mp3_path = f"{base}.mp3"
+                subprocess.run([
+                    "ffmpeg", "-i", downloaded,
+                    "-vn", "-ar", "44100", "-ac", "2", "-b:a", "192k",
+                    mp3_path, "-y"
+                ], check=True, capture_output=True)
+                os.remove(downloaded)
+                return mp3_path
+
+            result = await loop.run_in_executor(None, _download)
+            return result
+
         except Exception as e:
             logger.error(f"Audio yükləmə xətası '{youtube_id}': {e}")
             return None
 
     def _parse_duration(self, duration_str: str) -> Optional[int]:
-        """ISO 8601 duration-u saniyəyə çevir (PT4M13S → 253)"""
         import re
         if not duration_str:
             return None
