@@ -1,4 +1,3 @@
-# src/services/redis_client.py dosyasını tamamen bununla değiştirin:
 import redis.asyncio as redis
 from loguru import logger
 from src.config import settings
@@ -8,26 +7,28 @@ class RedisClient:
         self.client: redis.Redis | None = None
 
     async def connect(self):
+        # Eğer URL boşsa veya 'none' ise bağlanma
+        if not settings.REDIS_URL or settings.REDIS_URL.lower() == "none":
+            return
+
         try:
-            # Otomatik yeniden bağlanma ve ping kontrolü eklendi
             self.client = redis.from_url(
                 settings.REDIS_URL,
                 decode_responses=True,
-                socket_timeout=10.0,
-                socket_connect_timeout=10.0,
-                socket_keepalive=True,
-                retry_on_timeout=True,
-                health_check_interval=30
+                socket_timeout=5.0,
+                retry_on_timeout=True
             )
             await self.client.ping()
-            logger.info("Redis bağlantısı başarıyla kuruldu.")
         except Exception as e:
-            logger.error(f"Redis bağlantı hatası: {e}")
+            logger.error(f"Redis hatası: {e}")
+            self.client = None # Hata durumunda client'ı temizle
             raise
 
     async def disconnect(self):
         if self.client:
-            await self.client.close()
-            logger.info("Redis bağlantısı kapatıldı.")
+            try:
+                await self.client.close()
+            except:
+                pass
 
 redis_client = RedisClient()
