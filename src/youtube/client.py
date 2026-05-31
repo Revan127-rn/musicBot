@@ -12,16 +12,16 @@ class YouTubeClient:
     def __init__(self):
         self.base_opts = {
             "noplaylist": True,
-            "ignoreerrors": False,   # Xətaları görək
-            "no_warnings": False,
-            "quiet": False,
+            "ignoreerrors": True,
+            "no_warnings": True,
+            "quiet": True,
             "verbose": False,
             "retries": 3,
+            "no_check_certificate": True,
             "cachedir": settings.YTDLP_CACHE_DIR,
             "cookiefile": settings.YTDLP_COOKIES_FILE if settings.YTDLP_COOKIES_FILE else None,
             "extractor_args": {
                 "youtube": {
-                    # web_safari bloklanıb — ios istifadə edirik
                     "player_client": ["ios", "web"],
                 }
             },
@@ -29,26 +29,22 @@ class YouTubeClient:
 
     def _get_search_opts(self) -> dict:
         opts = self.base_opts.copy()
-        opts.update({
-            "format": "bestaudio/best",
-            "outtmpl": "%(id)s.%(ext)s",
-        })
+        opts["format"] = "bestaudio/best"
+        opts["outtmpl"] = "%(id)s.%(ext)s"
         return opts
 
     def _get_download_opts(self, output_path: str) -> dict:
         opts = self.base_opts.copy()
-        opts.update({
-            "format": "bestaudio/best",
-            "outtmpl": output_path,
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                },
-                {"key": "FFmpegMetadata"},
-            ],
-        })
+        opts["format"] = "bestaudio/best"
+        opts["outtmpl"] = output_path
+        opts["postprocessors"] = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            },
+            {"key": "FFmpegMetadata"},
+        ]
         return opts
 
     async def search_video(self, query: str) -> List[Dict[str, Any]]:
@@ -130,7 +126,6 @@ class YouTubeClient:
             info_dict = await loop.run_in_executor(None, _download)
 
             if info_dict:
-                # mp3 yolunu tap
                 base = output_path.rsplit(".", 1)[0]
                 final_path = f"{base}.mp3"
                 if os.path.exists(final_path):
