@@ -1,30 +1,17 @@
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.engine.url import make_url
 from loguru import logger
 from src.database.models import Base
 
+# Global veritabanı nesnesi
 class Database:
     def __init__(self, db_url: str):
-        # 1. URL'yi düzenle (psycopg sürücüsünü kullanıyoruz)
-        url = make_url(db_url)
+        # asyncpg yerine daha kararlı olan psycopg sürücüsünü zorla
+        if db_url.startswith("postgresql://"):
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
         
-        # Dialect'i postgresql+psycopg olarak ayarla
-        if "psycopg" not in url.drivername:
-            url = url.set(drivername="postgresql+psycopg")
-        
-        # 2. Neon için SSL ayarlarını doğrudan URL parametresi olarak bırakabiliriz
-        # psycopg, URL içindeki sslmode=require parametresini mükemmel anlar.
-        
-        self.engine = create_async_engine(
-            url, 
-            echo=False,
-            # Bağlantı havuzu ayarları (Neon için optimize edildi)
-            pool_pre_ping=True,
-            pool_recycle=300
-        )
-        
+        self.engine = create_async_engine(db_url, echo=False)
         self.SessionLocal = sessionmaker(
             autocommit=False,
             autoflush=False,
@@ -37,9 +24,9 @@ class Database:
         try:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("Veritabanı bağlantısı (psycopg) başarılı.")
+            logger.info("Veritabanı tabloları hazır.")
         except Exception as e:
-            logger.error(f"Veritabanı başlatma hatası: {e}")
+            logger.error(f"Veritabanı hatası: {e}")
             raise
 
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
@@ -49,10 +36,13 @@ class Database:
             finally:
                 await session.close()
 
+# Bu değişkeni dışarıdan erişilebilir kılıyoruz
 db: Database | None = None
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    global db
     if db is None:
-        raise Exception("Database initialized değil!")
+        logger.error("Veritabanı henüz başlatılmamış!")
+        return
     async for session in db.get_session():
         yield session
