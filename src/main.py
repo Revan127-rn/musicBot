@@ -62,10 +62,26 @@ async def main():
     dp = Dispatcher(storage=storage)
 
     # Debug Middleware (Gelen mesajları loglarda görmek için)
+   # Debug Middleware (Admin kullanıcılara hata mesajları gönderir)
     @dp.update.outer_middleware()
     async def debug_middleware(handler, event, data):
         logger.info(f"--- Yeni İstek: {event.event_type} ---")
-        return await handler(event, data)
+        try:
+            return await handler(event, data)
+        except Exception as e:
+            logger.error(f"Xəta: {e}")
+            # Admin-lərə xəta göndər
+            error_text = (
+                f"🚨 <b>Xəta baş verdi!</b>\n\n"
+                f"<code>{type(e).__name__}: {str(e)}</code>\n\n"
+                f"<b>Event:</b> {event.event_type}"
+            )
+            for admin_id in settings.ADMIN_TELEGRAM_IDS:
+                try:
+                    await bot.send_message(admin_id, error_text)
+                except Exception:
+                    pass
+            raise)
 
     # Middleware Kayıtları
     dp.message.middleware(ThrottlingMiddleware())
