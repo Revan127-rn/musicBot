@@ -11,13 +11,13 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field(..., env="DATABASE_URL")
     REDIS_URL: str = Field(..., env="REDIS_URL")
     GROQ_API_KEY: str = Field(..., env="GROQ_API_KEY")
-    
+    YOUTUBE_API_KEY: str = Field(..., env="YOUTUBE_API_KEY")
+
     ADMIN_TELEGRAM_IDS: List[int] = Field(default_factory=list, env="ADMIN_TELEGRAM_IDS")
 
     @field_validator("REDIS_URL", mode="before")
     @classmethod
     def clean_redis_url(cls, v: str) -> str:
-        # Eğer kullanıcı yanlışlıkla 'redis-cli -u redis://...' şeklinde yapıştırdıysa temizle
         if " -u " in v:
             v = v.split(" -u ")[-1]
         elif "redis-cli " in v:
