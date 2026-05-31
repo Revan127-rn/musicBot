@@ -103,6 +103,9 @@ class YouTubeClient:
 
     async def download_audio(self, youtube_id: str, output_path: str) -> Optional[str]:
         logger.info(f"Audio yüklənir: {youtube_id}")
+        logger.info(f"Cookies faylı: {settings.YTDLP_COOKIES_FILE}")
+        import os
+        logger.info(f"Cookies mövcuddur: {os.path.exists(settings.YTDLP_COOKIES_FILE) if settings.YTDLP_COOKIES_FILE else 'YOX'}")
         from yt_dlp import YoutubeDL
         video_url = f"https://www.youtube.com/watch?v={youtube_id}"
         opts = {
