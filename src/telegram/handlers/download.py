@@ -21,7 +21,7 @@ async def download_song_callback(callback: CallbackQuery, session: AsyncSession)
     song_db_id = int(callback.data.split(":")[1])
     song_service = SongService(session)
 
-    song = await song_service.session.get(SongService.Song, song_db_id)
+    song = await session.get(Song, song_db_id)
     if not song:
         await callback.message.answer("Şarkı bulunamadı.")
         await callback.answer()
